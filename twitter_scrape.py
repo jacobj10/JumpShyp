@@ -3,19 +3,23 @@ from tweepy import OAuthHandler
 from tweepy import Stream
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from twilio.rest import Client 
+from pymongo import MongoClient
 
 import json
 import datetime
 
-CONSUMER_KEY = "NA"
-CONSUMER_SECRET = "NA"
-ACCESS_TOKEN = "NA-NA"
-ACCESS_SECRET = "NA"
 
-TWILIO_ACCOUNT = "NA"
-TWILIO_TOKEN = "NA"
+CONSUMER_KEY = "nah"
+CONSUMER_SECRET = "nah"
+ACCESS_TOKEN = "nah-nah"
+ACCESS_SECRET = "nah"
+
+TWILIO_ACCOUNT = "nah"
+TWILIO_TOKEN = "nah"
 
 CLIENT = Client(TWILIO_ACCOUNT, TWILIO_TOKEN)
+MONGO_CLIENT = MongoClient('localhost', 27017)
+DATABASE = MONGO_CLIENT['app']
 
 class Target(object):
     def __init__(self, name):
@@ -61,7 +65,8 @@ class Target(object):
                             "doing quite well on Twitter" if mag == 1 else "is doing pretty poorly on Twitter",
                             str(self.vel)
                 )
-            message = CLIENT.messages.create(to="+14403172585", from_="+14403791566",
+            for number in DATABASE['companies'].find_one({'company': self.name})['numbers']:
+                message = CLIENT.messages.create(to=number, from_="+14403791566",
                                  body=msg)
             print("sent")
 
@@ -100,5 +105,3 @@ class TwitterScraper(object):
     def generate_queries(self, name):
         with_s = name + 's'
         return [name, with_s]
-
-TwitterScraper('google')

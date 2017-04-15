@@ -2,25 +2,81 @@ from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from twilio.rest import Client 
 
 import json
+import datetime
 
-CONSUMER_KEY = "NOPE"
-CONSUMER_SECRET = "NOPE"
-ACCESS_TOKEN = "NOPE"
-ACCESS_SECRET = "NOPE"
+CONSUMER_KEY = "NA"
+CONSUMER_SECRET = "NA"
+ACCESS_TOKEN = "NA-NA"
+ACCESS_SECRET = "NA"
+
+TWILIO_ACCOUNT = "NA"
+TWILIO_TOKEN = "NA"
+
+CLIENT = Client(TWILIO_ACCOUNT, TWILIO_TOKEN)
+
+class Target(object):
+    def __init__(self, name):
+        self.name = name
+
+        self.vel = 0
+
+        self.pos_thresh_hit = False
+        self.neg_thresh_hit = False
+        
+        self.pos_thresh = 1
+        self.neg_thresh = -1
+
+        self.last = datetime.datetime(1, 1, 1, 1, 1, 1)
+
+    def update(self, vs, time):
+        timedelta = (time - self.last).total_seconds()
+        self.last = time
+        sentiment = vs['compound']
+        incr = 0
+        if sentiment >= 0.5:
+            incr = vs['pos']
+        elif sentiment <= -0.5:
+            incr = vs['neg']
+        if int(timedelta) == 0:
+            timedelta = 1
+        self.vel += incr / int(timedelta)
+        print(self.vel)
+        if (self.vel >= self.pos_thresh and not self.pos_thresh_hit):
+            self.send_message(1)
+            self.pos_thresh_hit = True
+        elif (self.vel <= self.neg_thresh and not self.neg_thresh_hit):
+            self.send_message(-1)
+            self.neg_thresh_hit = True
+        if self.vel < self.pos_thresh:
+            self.pos_thresh_hit = False
+        if self.vel  > self.neg_thresh:
+            self.neg_thresh_hit = False
+
+    def send_message(self, mag):
+            msg = "Looks like {0} is {1} with a velocity of {2}".format(
+                            self.name,
+                            "doing quite well on Twitter" if mag == 1 else "is doing pretty poorly on Twitter",
+                            str(self.vel)
+                )
+            message = CLIENT.messages.create(to="+14403172585", from_="+14403791566",
+                                 body=msg)
+            print("sent")
 
 class StdOutListener(StreamListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
         self.analyzer = kwargs['analyzer']
-        self.name = kwargs['track_name']
+        self.target = kwargs['target']
+        self.history = []
 
     def on_status(self, status):
         text = status.text
         vs = self.analyzer.polarity_scores(text)
-        print(text + " " + str(vs))
+        self.target.update(vs, status.created_at)
 
     def on_error(self, status):
         print(status)
@@ -28,15 +84,15 @@ class StdOutListener(StreamListener):
 class TwitterScraper(object):
     def __init__(self, name):
         self.analyzer = SentimentIntensityAnalyzer()
-        self.name = name
+        self.target = Target(name)
         self.stream = self.setup_auth()
-        self.queries = self.generate_queries(self.name)
+        self.queries = self.generate_queries(self.target.name)
         
         self.stream.filter(track=self.queries, async=True)
 
     def setup_auth(self):
         
-        l = StdOutListener(track_name=self.name, analyzer=self.analyzer)
+        l = StdOutListener(target=self.target, analyzer=self.analyzer)
         auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
         auth.set_access_token(ACCESS_TOKEN, ACCESS_SECRET)
         return Stream(auth, l)
@@ -45,4 +101,4 @@ class TwitterScraper(object):
         with_s = name + 's'
         return [name, with_s]
 
-TwitterScraper('hax333r')
+TwitterScraper('google')

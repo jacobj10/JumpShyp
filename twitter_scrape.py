@@ -9,7 +9,6 @@ import json
 import datetime
 import re
 
-
 CONSUMER_KEY = "nah"
 CONSUMER_SECRET = "nah"
 ACCESS_TOKEN = "nah-nah"
@@ -25,6 +24,7 @@ DATABASE = MONGO_CLIENT['app']
 class Target(object):
     def __init__(self, name, abb):
         self.name = name
+        self.abbr = abb
 
         self.vel = 0
 
@@ -46,7 +46,7 @@ class Target(object):
             inc = 1
         elif polarity <= -0.25:
             inc = -1
-        self.vel += polarity / int(timedelta)
+        self.vel += polarity / (int(timedelta))
         print(self.vel)
         if (self.vel >= self.pos_thresh and not self.pos_thresh_hit):
             self.send_message(1)
@@ -65,15 +65,17 @@ class Target(object):
             status = "doing quite well on Twitter" 
         elif mag == -1:
             status = "doing pretty poorly on Twitter"
-        msg = "Looks like {0} is {1} with a velocity of {2}".format(
+        url = "http://172.20.44.75:5000/stats/{0}".format(self.abbr + "_" + self.name)
+        url = ''.join(url.split(' '))
+        msg = "Looks like {0} is {1} with a velocity of {2}.\nSee {3} for more...".format(
                         self.name.upper(),
                         status,
-                        "{0:.2f}".format(round(self.vel,2))
+                        "{0:.2f}".format(round(self.vel,2)),
+                        url
             )
         for number in DATABASE['companies'].find_one({'company': self.name})['numbers']:
             message = CLIENT.messages.create(to=number, from_="+14403791566",
                              body=msg)
-        print("sent")
 
 class StdOutListener(StreamListener):
     def __init__(self, *args, **kwargs):

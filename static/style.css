@@ -1,0 +1,50 @@
+body {
+	background-color: #6F8AB7;
+	color: #eeeeee;
+}
+
+h1 {
+	font-size: 800%;
+}
+
+div {
+  margin: 20px;
+}
+
+ul {
+  list-style-type: none;
+  width: 500px;
+  margin-left: 15%;
+}
+
+h3 {
+  font: bold 400%/1.5 Helvetica, Verdana, sans-serif;
+}
+
+li img {
+  float: left;
+  margin: 0 15px 0 0;
+}
+
+li p {
+  font: 200 200%/1.5 Georgia, Times New Roman, serif;
+}
+
+li {
+  padding: 10px;
+  overflow: auto;
+}
+
+li:hover {
+  background: #B8F3FF;
+  cursor: pointer;
+}
+
+a {
+	text-decoration: none; /* no underline */
+	color: #eeeeee
+}
+
+a:hover {
+  text-decoration: none; /* no underline */
+}

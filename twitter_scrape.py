@@ -1,12 +1,13 @@
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from textblob import TextBlob
 from twilio.rest import Client 
 from pymongo import MongoClient
 
 import json
 import datetime
+import re
 
 
 CONSUMER_KEY = "nah"
@@ -22,7 +23,7 @@ MONGO_CLIENT = MongoClient('localhost', 27017)
 DATABASE = MONGO_CLIENT['app']
 
 class Target(object):
-    def __init__(self, name):
+    def __init__(self, name, abb):
         self.name = name
 
         self.vel = 0
@@ -30,23 +31,22 @@ class Target(object):
         self.pos_thresh_hit = False
         self.neg_thresh_hit = False
         
-        self.pos_thresh = 1
-        self.neg_thresh = -1
+        self.pos_thresh = 2
+        self.neg_thresh = -2
 
         self.last = datetime.datetime(1, 1, 1, 1, 1, 1)
 
-    def update(self, vs, time):
+    def update(self, polarity, time):
         timedelta = (time - self.last).total_seconds()
         self.last = time
-        sentiment = vs['compound']
-        incr = 0
-        if sentiment >= 0.5:
-            incr = vs['pos']
-        elif sentiment <= -0.5:
-            incr = vs['neg']
         if int(timedelta) == 0:
             timedelta = 1
-        self.vel += incr / int(timedelta)
+        inc = 0
+        if polarity >= 0.25:
+            inc = 1
+        elif polarity <= -0.25:
+            inc = -1
+        self.vel += polarity / int(timedelta)
         print(self.vel)
         if (self.vel >= self.pos_thresh and not self.pos_thresh_hit):
             self.send_message(1)
@@ -60,36 +60,40 @@ class Target(object):
             self.neg_thresh_hit = False
 
     def send_message(self, mag):
-            msg = "Looks like {0} is {1} with a velocity of {2}".format(
-                            self.name,
-                            "doing quite well on Twitter" if mag == 1 else "is doing pretty poorly on Twitter",
-                            str(self.vel)
-                )
-            for number in DATABASE['companies'].find_one({'company': self.name})['numbers']:
-                message = CLIENT.messages.create(to=number, from_="+14403791566",
-                                 body=msg)
-            print("sent")
+        status = ""
+        if mag == 1:
+            status = "doing quite well on Twitter" 
+        elif mag == -1:
+            status = "doing pretty poorly on Twitter"
+        msg = "Looks like {0} is {1} with a velocity of {2}".format(
+                        self.name.upper(),
+                        status,
+                        "{0:.2f}".format(round(self.vel,2))
+            )
+        for number in DATABASE['companies'].find_one({'company': self.name})['numbers']:
+            message = CLIENT.messages.create(to=number, from_="+14403791566",
+                             body=msg)
+        print("sent")
 
 class StdOutListener(StreamListener):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
-        self.analyzer = kwargs['analyzer']
         self.target = kwargs['target']
-        self.history = []
 
     def on_status(self, status):
-        text = status.text
-        vs = self.analyzer.polarity_scores(text)
-        self.target.update(vs, status.created_at)
+        text = self.clean_status(status.text)
+        polarity = TextBlob(text).sentiment.polarity
+        self.target.update(polarity, status.created_at)
+
+    def clean_status(self, status):
+        return ' '.join(re.sub("(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", status).split())
 
     def on_error(self, status):
         print(status)
 
 class TwitterScraper(object):
-    def __init__(self, name):
-        self.analyzer = SentimentIntensityAnalyzer()
-        self.target = Target(name)
+    def __init__(self, name, abb):
+        self.target = Target(name, abb)
         self.stream = self.setup_auth()
         self.queries = self.generate_queries(self.target.name)
         
@@ -97,7 +101,7 @@ class TwitterScraper(object):
 
     def setup_auth(self):
         
-        l = StdOutListener(target=self.target, analyzer=self.analyzer)
+        l = StdOutListener(target=self.target)
         auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
         auth.set_access_token(ACCESS_TOKEN, ACCESS_SECRET)
         return Stream(auth, l)

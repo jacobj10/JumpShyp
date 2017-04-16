@@ -27,9 +27,10 @@ def main():
 def handle_submit():
     company = request.form['company']
     number = request.form['number']
+    abb = request.form['stock']
     if mongo.db.companies.find_one({'company': company}) == None:
         mongo.db.companies.insert_one({'company':company, 'numbers': [number,]})
-        TwitterScraper(company)
+        TwitterScraper(company, abb)
         return "Updated Company and Number!"
     else:
         print(mongo.db.companies.find_one_and_update({'company': company}, {'$push': {'numbers': number}}))
